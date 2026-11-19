@@ -2,7 +2,9 @@ name: PassoLivre AI - DevSecOps
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -70,12 +72,12 @@ jobs:
           ignore-unfixed: true
 
       - name: Definir nome da imagem
-        if: github.event_name == 'push' && github.ref == 'refs/heads/devsecops-cloud'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:latest" >> "$GITHUB_ENV"
+        run: echo "IMAGE=ghcr.io/gabriel-riqueto/passolivre-ai:latest" >> "$GITHUB_ENV"
 
       - name: Autenticar no GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/devsecops-cloud'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -83,7 +85,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publicar imagem Docker
-        if: github.event_name == 'push' && github.ref == 'refs/heads/devsecops-cloud'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker tag passolivre:ci "$IMAGE" && docker tag passolivre:ci "${IMAGE%:*}:${GITHUB_SHA}" && docker push "$IMAGE" && docker push "${IMAGE%:*}:${GITHUB_SHA}"
 
   deploy:
@@ -91,7 +93,7 @@ jobs:
     needs: security-build
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'push' && github.ref == 'refs/heads/devsecops-cloud'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     permissions:
       id-token: write
