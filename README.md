@@ -1,4 +1,13 @@
-# PassoLivre AI
+# PassoLivre AI — Secure DevOps & Cloud Computing
+
+Projeto acadêmico da disciplina Secure DevOps & Cloud Computing (FIAP).
+
+**Repositório:** https://github.com/gabriel-riqueto/Passolivre-AI-DevSecOp  
+**Branch padrão:** `main`  
+**API publicada na Azure (Swagger):** https://ca-passolivre-ai.orangeflower-4427298c.brazilsouth.azurecontainerapps.io/docs
+
+A API utiliza autenticação por `X-API-Key` nas rotas `/fontes`, `/buscar` e `/perguntar` quando publicada na Azure. O Swagger (`/docs`) e o endpoint `/health` podem ser acessados sem chave. A credencial é fornecida separadamente pela equipe e não está no repositório. A disponibilidade da demonstração depende dos recursos e dos créditos da assinatura acadêmica.
+
 ## Equipe
 
 | Integrante | RM |
@@ -7,65 +16,58 @@
 | Sabrina Flores | 550781 |
 | Gabriel Riqueto | 98685 |
 
-## Funcionalidades e escopo
+## Escopo
 
-O sistema recebe perguntas em português e retorna uma resposta estruturada contendo o texto, os IDs das fontes utilizadas e um indicador de recusa. Possui uma API local construída com FastAPI e uma base textual de 17 trechos: dez registros ou políticas simuladas e sete paráfrases de fontes públicas com referência e origem.
+A aplicação utiliza FastAPI e Ollama para responder perguntas em português com o modelo `qwen2.5:3b-instruct-q4_K_M`. Os modos de consulta são `puro` (LLM diretamente), `rag` (recuperação lexical de contexto com TF-IDF) e `agente` (recuperação, consulta a ocorrências e regras de validação/abstenção). A base demonstrativa inclui 17 trechos. As ocorrências e os endereços utilizados nos testes são fictícios.
 
-Os modos disponíveis são:
+A entrega de DevSecOps abrange containerização, infraestrutura como código, esteira de segurança e CI/CD, hospedagem na Azure, controle de acesso e monitoramento. Não há detecção de obstáculos por imagem, cadastro de usuários nem utilização de ocorrências reais nesta versão.
 
-| Modo | Comportamento |
-| --- | --- |
-| `puro` | Consulta a LLM sem fornecer trechos da base. |
-| `rag` | Recupera até três trechos com TF-IDF e os fornece ao modelo. |
-| `agente` | Utiliza recuperação, consulta exata por identificador de ocorrência e regras de abstenção e validação. |
+## Arquitetura da implantação
 
-A especialização foi implementada por ferramentas e regras; não houve fine-tuning, LoRA ou treinamento de pesos. O mecanismo de recuperação é lexical (TF-IDF de palavras e caracteres), não uma base vetorial de embeddings.
+- **Azure Container Apps:** aplicação `ca-passolivre-ai`, no ambiente `env-passolivre-standard` (Workload Profiles / Consumption), com dois contêineres na mesma réplica: `api` (0,5 vCPU / 1 GiB) e `ollama` (2 vCPU / 4 GiB).
+- **Comunicação:** o HTTPS público é encaminhado à FastAPI na porta 8000; o Ollama atende internamente em `http://127.0.0.1:11434`, sem ingress externo próprio.
+- **Segredos:** o valor da API Key é referenciado como segredo do Container App. A autenticação é habilitada na Azure por `PASSOLIVRE_REQUIRE_API_KEY=true`.
+- **Terraform:** gerencia os recursos de infraestrutura e o State remoto no Azure Blob Storage.
+- **GitHub Actions:** executa os testes e scanners, publica a imagem da API no GHCR e atualiza o Container App via OIDC após aprovação da esteira.
+- **Azure Monitor e Log Analytics:** acompanham latência, volume de requisições, categorias HTTP, CPU e memória; uma regra de alerta detecta volume elevado de respostas 4xx.
 
-Esta versão não realiza detecção automática de obstáculos em fotos, cadastro de usuários, armazenamento de imagens, mapas ou vistorias reais. As ocorrências e os endereços de demonstração são fictícios. A API deve ser mantida localmente: não há autenticação para exposição pública.
+## Como executar localmente
 
-## Tecnologias
+### Pré-requisitos
 
-Python 3.11, FastAPI, Pydantic, scikit-learn, Ollama e modelo `qwen2.5:3b-instruct-q4_K_M`, executado localmente com aceleração por GPU.
+Git, Docker Desktop com contêineres Linux e Docker Compose. Os comandos a seguir são para **PowerShell**. O clone padrão do repositório já utiliza a branch `main`: não é necessário escolher ou trocar de branch.
 
-## Instalação e execução
+### 1. Clonar e iniciar os serviços
 
-Os comandos abaixo consideram Windows PowerShell, com o terminal aberto na raiz `GS-AI`.
-
-### 1. Ambiente Python
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-### 2. Modelo local
-
-Instale e inicie o Ollama, depois obtenha o modelo usado nos experimentos:
+Execute no PowerShell, em uma pasta na qual queira guardar o projeto:
 
 ```powershell
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama list
+git clone https://github.com/gabriel-riqueto/Passolivre-AI-DevSecOp.git
+Set-Location .\Passolivre-AI-DevSecOp
+docker compose up -d --build
 ```
 
-Caso o serviço do Ollama não esteja iniciado, execute `ollama serve` em outro terminal. O serviço local padrão utiliza `http://127.0.0.1:11434`.
+### 2. Disponibilizar o modelo
 
-### 3. Testes automatizados
+Execute na **raiz do projeto clonado**:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q
+docker compose exec ollama ollama pull qwen2.5:3b-instruct-q4_K_M
+docker compose exec ollama ollama list
+docker compose ps
 ```
 
-Na execução documentada, 27 testes foram aprovados. Eles verificam funcionalidades do código e não substituem a auditoria factual das respostas geradas.
+O download do modelo é necessário na primeira execução quando o volume de dados do Ollama está vazio. O primeiro processamento pode demorar mais durante o carregamento do modelo.
 
-### 4. API
+### 3. Confirmar o funcionamento da API
+
+Execute na **raiz do projeto clonado**:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+curl.exe -i http://127.0.0.1:8000/health
 ```
 
-A documentação interativa estará disponível em `http://127.0.0.1:8000/docs`.
-
-Endpoint de perguntas: `POST /perguntar`. Exemplo de corpo JSON:
+Abra `http://127.0.0.1:8000/docs`, selecione `POST /perguntar` → **Try it out** e envie:
 
 ```json
 {
@@ -74,76 +76,112 @@ Endpoint de perguntas: `POST /perguntar`. Exemplo de corpo JSON:
 }
 ```
 
-Outros endpoints disponíveis: `GET /health`, `GET /fontes` e `GET /buscar`.
+No ambiente local padrão, a autenticação por API Key não é exigida. **Não utilize essa configuração em uma exposição pública.**
 
-## Metodologia de avaliação
+### 4. Parar a execução local
 
-Foi realizada uma avaliação exploratória de 32 perguntas nos três modos, seguida de retestes dirigidos de cinco erros (Q04, Q07, Q13, Q20 e Q24) e de um conjunto distinto de 16 perguntas. As 48 respostas do conjunto distinto passaram por revisão humana, seguindo `avaliacao/rubrica_humana.md`.
-
-A recuperação foi avaliada por Recall@1 e Recall@3. A correção factual e a presença de alucinações foram classificadas separadamente; uma citação com ID válido não garante que a afirmação esteja sustentada.
-
-### Resultados da avaliação independente
-
-| Métrica | Puro | RAG | Agente |
-| --- | ---: | ---: | ---: |
-| Respostas auditadas | 16 | 16 | 16 |
-| Correção humana | 18,75% | 68,75% | 75,00% |
-| Taxa de alucinação | 25,00% | 6,25% | 12,50% |
-| Recusas conforme gabarito | 68,75% | 75,00% | 93,75% |
-| JSON válido nas gerações | 100% | 100% | 100% |
-
-| Conjunto | Recall@1 | Recall@3 |
-| --- | ---: | ---: |
-| Avaliação original (24 questões com fonte relevante) | 89,58% | 97,92% |
-| Avaliação independente (12 questões com fonte relevante) | 75,00% | 83,33% |
-
-Os resultados se limitam aos conjuntos e ao corpus avaliados, sem demonstração de generalização para situações reais.
-
-### Reproduzir as métricas
-
-Avaliar recuperação no conjunto distinto sem realizar chamadas à LLM:
+Execute na **raiz do projeto clonado**:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\avaliar.py --perguntas avaliacao/perguntas_novas.json
+docker compose down
 ```
 
-Gerar novamente o placar a partir da auditoria já concluída (sem consultar a LLM):
+Os dados do volume Docker são preservados por esse comando; não use `--volumes` se quiser manter o modelo baixado.
+
+### Alternativa: executar com Python
+
+Requer Python 3.11, dependências do `requirements.txt` e Ollama instalado e iniciado no computador. Execute na **raiz do projeto clonado**:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\placar.py --csv "avaliacao/rodadas/avaliacao_independente_e68b6315fca6/resultados_revisados_v2.csv" --perguntas avaliacao/perguntas_novas.json
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest -q
+ollama pull qwen2.5:3b-instruct-q4_K_M
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Os arquivos de evidência encontram-se em `avaliacao/rodadas/`. A rodada `avaliacao_independente_e68b6315fca6` contém o placar final e as respostas auditadas; `reteste_cinco_erros_254bce103d96` contém os resultados dos cinco retestes.
+Se o serviço Ollama não estiver iniciado, execute `ollama serve` em outro terminal. Não execute Compose e Uvicorn simultaneamente na mesma porta 8000.
 
-## Estrutura do projeto
+## Rotas da API
 
-```text
-GS-AI/
-├── app/               # API, LLM, recuperação e agente
-├── base/              # Trechos do corpus e descrição da base
-├── avaliacao/         # Gabaritos, rubrica, métricas e rodadas
-├── docs/              # Relatório técnico e análise de erros
-├── notebooks/         # Análise da base, recuperação e comparação
-├── scripts/           # Calibração, avaliação e placar
-├── tests/             # Testes automatizados
-├── requirements.txt
-└── README.md
+| Rota | Método | Finalidade |
+| --- | --- | --- |
+| `/health` | GET | Verificar a disponibilidade da FastAPI (não valida o Ollama). |
+| `/docs` | GET | Documentação Swagger. |
+| `/fontes` | GET | Listar fontes do corpus. |
+| `/buscar` | GET | Pesquisar contexto na base. |
+| `/perguntar` | POST | Enviar uma pergunta ao sistema. |
+
+No ambiente Azure, `/fontes`, `/buscar` e `/perguntar` exigem o cabeçalho `X-API-Key`. A chave **não deve ser incluída em commits, logs, capturas ou documentos públicos**. Para testar as rotas protegidas, o professor poderá inserir a chave recebida por canal privado no botão **Authorize** do Swagger.
+
+Para conferir a disponibilidade pública sem credencial, execute em qualquer PowerShell:
+
+```powershell
+curl.exe -s -o NUL -w "Health HTTP %{http_code}\n" https://ca-passolivre-ai.orangeflower-4427298c.brazilsouth.azurecontainerapps.io/health
+curl.exe -s -o NUL -w "Sem chave HTTP %{http_code}\n" https://ca-passolivre-ai.orangeflower-4427298c.brazilsouth.azurecontainerapps.io/fontes
 ```
 
-## Documentação
+Nos testes registrados, os resultados foram `200` e `401`, respectivamente.
 
-- [Relatório técnico (Word)](docs/relatorio_tecnico.docx)
-- [Cinco erros e correções](docs/erros_e_correcoes.md)
-- [Rubrica de auditoria](avaliacao/rubrica_humana.md)
-- [Base de conhecimento](base/trechos.json)
+## Pipeline DevSecOps e deploy automatizado
 
+**Arquivo do workflow:** `.github/workflows/devsecops.yml`, na branch padrão `main`.
 
-## Privacidade, LGPD e limitações
+O pipeline é acionado em alterações de `main` e realiza:
 
-A base utilizada nos experimentos contém ocorrências fictícias e não armazena fotografias, localizações reais ou cadastros de pessoas. O sistema aceita texto livre nas perguntas e, portanto, não deve ser utilizado com dados pessoais reais sem controles adicionais. A execução local e o uso de dados simulados reduzem a exposição, mas não constituem certificação de conformidade com a LGPD.
+1. Instalação de dependências e testes com `pytest`.
+2. Detecção de segredos com Gitleaks e análise estática com Semgrep.
+3. Construção da imagem Docker e varredura de vulnerabilidades com Trivy, incluindo relatório completo.
+4. Bloqueio de vulnerabilidades HIGH/CRITICAL **com correção disponível**; publicação da imagem no GHCR com tags `latest` e SHA do commit quando as verificações passam.
+5. Autenticação na Azure por OIDC e atualização do contêiner `api` de `ca-passolivre-ai` depois da aprovação do job de segurança.
 
-Para uma implantação com usuários reais seriam necessários, entre outros, definição de finalidade e base legal, minimização e retenção de dados, controle de acesso, segurança de registros e tratamento de solicitações dos titulares. As respostas do assistente não substituem vistorias, orientação técnica profissional nem a consulta à redação vigente das normas citadas.
+A política do Trivy mantém uma exceção para problemas ainda sem correção (`ignore-unfixed: true`). Portanto, uma execução aprovada não significa ausência absoluta de vulnerabilidades. O relatório completo fica disponível como evidência do scan.
+
+**Configuração necessária para quem for reproduzir o CI/CD em outra assinatura:** cadastrar `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_SUBSCRIPTION_ID` em GitHub Actions Secrets; configurar uma credencial federada compatível com o repositório e a branch `main`; e conceder as permissões Azure e GHCR necessárias. Esses identificadores não são a API Key da aplicação. O deploy não estará autorizado numa conta externa somente por clonar o código.
+
+**Imagem da API:** `ghcr.io/gabriel-riqueto/passolivre-ai`  
+**Imagem de Ollama usada na implantação:** `ghcr.io/gabriel-riqueto/passolivre-ollama-cpu`
+
+## Infraestrutura com Terraform
+
+| Arquivo | Responsabilidade |
+| --- | --- |
+| `infra/providers.tf` | Provedores AzureRM, AzAPI e Random; backend remoto Azure. |
+| `infra/main.tf` | Recursos básicos, incluindo Resource Group e Log Analytics. |
+| `infra/environment-standard.tf` | Ambiente de Container Apps no modo Workload Profiles. |
+| `infra/container-app.tf` | Contêineres, ingress, recursos de CPU/memória, variáveis e segredos. |
+| `infra/api-key.tf` | Geração da chave de acesso usada na implantação Azure. |
+| `infra/outputs.tf` | Saídas de infraestrutura. |
+
+Para **validar a configuração sem acessar o backend remoto** (necessário Terraform instalado), execute na raiz do projeto:
+
+```powershell
+terraform -chdir=infra init -backend=false
+terraform -chdir=infra fmt -check
+terraform -chdir=infra validate
+```
+
+**Não execute `terraform apply` ao clonar o projeto.** O backend remoto e a criação/atualização de recursos exigem uma assinatura Azure, RBAC e parâmetros específicos. O State pode conter dados sensíveis e não deve ser publicado. A infraestrutura já implantada utiliza `rg-passolivre-devops`, `env-passolivre-standard`, `ca-passolivre-ai` e `logs-passolivre` na região Brazil South.
+
+## Monitoramento
+
+No Azure Monitor, o dashboard **Passo Livre AI — Observabilidade DevSecOps** apresenta tempo médio de resposta, tráfego, requisições por categoria HTTP e utilização de CPU e memória. A regra `alert-passolivre-acessos-negados` acompanha respostas HTTP `4xx`: ela foi configurada para disparar quando houver mais de cinco requisições em uma janela de cinco minutos e foi validada com acessos de teste que retornaram `401`. Erros 4xx também podem resultar de comportamentos esperados e não representam, isoladamente, ataques.
+
+## Privacidade e LGPD
+
+A demonstração utiliza ocorrências fictícias e não exige cadastro de usuários. Como os campos de pergunta aceitam texto livre, **não encaminhe dados pessoais reais à instância de demonstração**. O processamento da IA ocorre nos contêineres FastAPI e Ollama da implantação em Brazil South, mas serviços externos e registros administrativos podem ter políticas e localidades distintas. 
+
+O controle por API Key reduz acessos não autorizados, mas não substitui políticas de retenção, governança, controles adicionais e avaliação de riscos para uso produtivo. Evite expor credenciais, prompts sensíveis e informações identificáveis em logs ou evidências.
+
+## Custos e documentação
+
+O Azure Container Apps mantém ao menos uma réplica ativa na configuração demonstrada e pode consumir créditos sem tráfego. O consumo pode ser consultado no Azure Portal em **Resource Groups → rg-passolivre-devops → Cost Management → Cost analysis**. O valor efetivamente registrado será apresentado em captura de tela na documentação de entrega.
+
+A documentação técnica da disciplina, contendo diagrama da arquitetura, responsabilidade compartilhada, LGPD, custos e capturas de evidência, será disponibilizada na pasta `docs/`. P
 
 ## Referências
 
-As referências dos trechos, suas naturezas e URLs estão documentadas em `base/trechos.json`. Incluem a Lei Brasileira de Inclusão (Lei nº 13.146/2015), orientações da Prefeitura de São Paulo sobre calçadas e o Decreto municipal nº 59.671/2020. Os trechos públicos são paráfrases e devem ser conferidos nas fontes oficiais para uso além do experimento.
+- [Responsabilidade compartilhada — Microsoft Learn](https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility)
+- [Azure Container Apps — cobrança](https://learn.microsoft.com/en-us/azure/container-apps/billing)
+- [Azure Monitor — custos](https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/cost-usage)
+- [Lei Geral de Proteção de Dados — Lei 13.709/2018](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)
