@@ -175,7 +175,9 @@ O controle por API Key reduz acessos não autorizados, mas não substitui polít
 
 ## Custos e documentação
 
-O Azure Container Apps mantém ao menos uma réplica ativa na configuração demonstrada e pode consumir créditos sem tráfego. O consumo pode ser consultado no Azure Portal em **Resource Groups → rg-passolivre-devops → Cost Management → Cost analysis**. O valor efetivamente registrado será apresentado em captura de tela na documentação de entrega.
+Durante a consulta ao Azure Cost Management, em novembro de 2026, foi identificado um custo acumulado inferior a R$ 0,01 na assinatura.
+
+O consumo registrado estava associado principalmente ao serviço de armazenamento (Storage), utilizado pelo Terraform State. Os serviços de monitoramento e o grupo de recursos da aplicação não apresentavam custos cobrados na consulta.
 
 A documentação técnica da disciplina, contendo diagrama da arquitetura, responsabilidade compartilhada, LGPD, custos e capturas de evidência, será disponibilizada na pasta `docs/`. P
 
